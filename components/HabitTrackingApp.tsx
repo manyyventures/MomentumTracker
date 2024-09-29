@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChevronLeft, ChevronRight, Edit2, Check, Plus, Trash2 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format } from 'date-fns';
+import { format, addDays, addMonths, addYears, startOfYear, eachDayOfInterval } from 'date-fns';
 
 interface Task {
   id: number;
@@ -21,14 +21,13 @@ interface DailyTasks {
   };
 }
 
-// Date Selector Component
-function DateSelector({ currentDate, onChange, format }: { currentDate: Date, onChange: (amount: number) => void, format: (date: Date) => string }) {
+function DateSelector({ currentDate, onChange, formatString }: { currentDate: Date, onChange: (amount: number) => void, formatString: string }) {
   return (
     <div className="flex items-center justify-between mb-4">
       <Button variant="outline" size="icon" onClick={() => onChange(-1)} aria-label="Previous">
         <ChevronLeft className="h-4 w-4" />
       </Button>
-      <span className="text-sm font-medium">{format(currentDate)}</span>
+      <span className="text-sm font-medium">{format(currentDate, formatString)}</span>
       <Button variant="outline" size="icon" onClick={() => onChange(1)} aria-label="Next">
         <ChevronRight className="h-4 w-4" />
       </Button>
@@ -36,7 +35,6 @@ function DateSelector({ currentDate, onChange, format }: { currentDate: Date, on
   );
 }
 
-// Task Tracker Component
 function TaskTracker({ currentDate, tasks, dailyTasks, updateTask, updateTaskName, moveTaskToDate, addTask, removeTask, changeDate }: {
   currentDate: Date;
   tasks: Task[];
@@ -53,12 +51,7 @@ function TaskTracker({ currentDate, tasks, dailyTasks, updateTask, updateTaskNam
   const [newTaskName, setNewTaskName] = useState("");
   const [editDate, setEditDate] = useState<Date | null>(null);
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  // Filter tasks for the current date
-  const dateKey = currentDate.toISOString().split('T')[0];
+  const dateKey = format(currentDate, 'yyyy-MM-dd');
   const tasksForCurrentDate = dailyTasks[dateKey] || {};
 
   const getTaskName = (taskId: number) => {
@@ -70,7 +63,7 @@ function TaskTracker({ currentDate, tasks, dailyTasks, updateTask, updateTaskNam
     const taskName = getTaskName(taskId);
     setEditingTask(taskId);
     setEditName(taskName);
-    setEditDate(currentDate); // Set initial edit date to current date
+    setEditDate(currentDate);
   };
 
   const handleSaveEdit = (taskId: number) => {
@@ -92,48 +85,50 @@ function TaskTracker({ currentDate, tasks, dailyTasks, updateTask, updateTaskNam
 
   return (
     <div className="space-y-6">
-      <DateSelector currentDate={currentDate} onChange={changeDate} format={formatDate} />
+      <DateSelector currentDate={currentDate} onChange={changeDate} formatString="EEEE, d MMMM, yyyy" />
       <ul className="space-y-4">
         {Object.entries(tasksForCurrentDate).map(([taskId, completed]) => (
           <li key={taskId} className="flex items-center space-x-2">
-            <div className="w-full flex items-center space-x-3 p-3 bg-gray-100 rounded-lg">
+            <div className="w-full flex items-center space-x-3 p-3 bg-gray-100 rounded-lg h-16">
               <Checkbox
                 id={`task-${taskId}`}
                 checked={completed}
                 onCheckedChange={(checked) => updateTask(dateKey, Number(taskId), checked as boolean)}
               />
-              {editingTask === Number(taskId) ? (
-                <div className="flex flex-grow items-center space-x-2">
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveEdit(Number(taskId));
-                      }
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex-grow w-2/3 text-base"
-                    autoFocus
-                  />
-                  <DatePicker
-                    selected={editDate}
-                    onChange={(date: Date | null) => {
-                      if (date) {
-                        setEditDate(date);
-                      }
-                    }}
-                    dateFormat="E, MMM d yyyy"
-                    className="flex-grow w-1/3 text-base bg-gray-100 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    popperPlacement="bottom-end"
-                  />
-                </div>
-              ) : (
-                <span className="text-base font-medium flex-grow text-left cursor-pointer" onClick={() => handleEditClick(Number(taskId))}>
-                  {getTaskName(Number(taskId))}
-                </span>
-              )}
+              <div className="flex-grow flex items-center h-full">
+                {editingTask === Number(taskId) ? (
+                  <div className="flex flex-grow items-center space-x-2 w-full">
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveEdit(Number(taskId));
+                        }
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-grow text-base"
+                      autoFocus
+                    />
+                    <DatePicker
+                      selected={editDate}
+                      onChange={(date: Date | null) => {
+                        if (date) {
+                          setEditDate(date);
+                        }
+                      }}
+                      dateFormat="EEE, d MMM yyyy"
+                      className="flex-grow text-base border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full"
+                      popperPlacement="bottom-end"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-base font-medium flex-grow text-left cursor-pointer truncate" onClick={() => handleEditClick(Number(taskId))}>
+                    {getTaskName(Number(taskId))}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center space-x-2">
                 {editingTask === Number(taskId) ? (
                   <Button
@@ -184,8 +179,6 @@ function TaskTracker({ currentDate, tasks, dailyTasks, updateTask, updateTaskNam
   );
 }
 
-
-// Monthly Overview Component
 function MonthlyOverview({ currentDate, changeMonth, dailyTasks, onDateSelect }: {
   currentDate: Date;
   changeMonth: (amount: number) => void;
@@ -193,9 +186,7 @@ function MonthlyOverview({ currentDate, changeMonth, dailyTasks, onDateSelect }:
   onDateSelect: (date: Date) => void;
 }) {
   const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month + 1, 0).getDate();
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
 
   const getFirstDayOfMonth = (date: Date) => {
@@ -216,7 +207,7 @@ function MonthlyOverview({ currentDate, changeMonth, dailyTasks, onDateSelect }:
       }
 
       const date = new Date(year, month, dayNumber);
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = format(date, 'yyyy-MM-dd');
 
       if (date > today) {
         return { day: dayNumber, date, status: 'future' };
@@ -259,13 +250,9 @@ function MonthlyOverview({ currentDate, changeMonth, dailyTasks, onDateSelect }:
 
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const formatMonth = (date: Date) => {
-    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-
   return (
     <div className="space-y-6">
-      <DateSelector currentDate={currentDate} onChange={changeMonth} format={formatMonth} />
+      <DateSelector currentDate={currentDate} onChange={changeMonth} formatString="MMMM yyyy" />
       <div className="grid grid-cols-7 gap-2">
         {weekdays.map((day) => (
           <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
@@ -292,7 +279,6 @@ function MonthlyOverview({ currentDate, changeMonth, dailyTasks, onDateSelect }:
   );
 }
 
-// Yearly Overview Component
 function YearlyOverview({ currentYear, changeYear, dailyTasks, onDateSelect }: {
   currentYear: number;
   changeYear: (amount: number) => void;
@@ -300,36 +286,29 @@ function YearlyOverview({ currentYear, changeYear, dailyTasks, onDateSelect }: {
   onDateSelect: (date: Date) => void;
 }) {
   const getYearData = () => {
-    const year = currentYear;
+    const startDate = startOfYear(new Date(currentYear, 0, 1));
+    const endDate = new Date(currentYear, 11, 31);
     const today = new Date();
-    const yearData = [];
 
-    for (let month = 0; month < 12; month++) {
-      for (let day = 1; day <= 31; day++) {
-        const date = new Date(year, month, day);
-        if (date.getMonth() !== month) continue; // Skip invalid dates
+    return eachDayOfInterval({ start: startDate, end: endDate }).map(date => {
+      const dateKey = format(date, 'yyyy-MM-dd');
 
-        const dateKey = date.toISOString().split('T')[0];
-
-        if (date > today) {
-          yearData.push({ date, status: 'future' });
-        } else {
-          const dayTasks = dailyTasks[dateKey] || {};
-          const completedTasks = Object.values(dayTasks).filter(Boolean).length;
-          const totalTasks = Object.keys(dayTasks).length;
-
-          if (completedTasks === totalTasks && totalTasks > 0) {
-            yearData.push({ date, status: 'completed' });
-          } else if (completedTasks > 0) {
-            yearData.push({ date, status: 'partial' });
-          } else {
-            yearData.push({ date, status: 'missed' });
-          }
-        }
+      if (date > today) {
+        return { date, status: 'future' };
       }
-    }
 
-    return yearData;
+      const dayTasks = dailyTasks[dateKey] || {};
+      const completedTasks = Object.values(dayTasks).filter(Boolean).length;
+      const totalTasks = Object.keys(dayTasks).length;
+
+      if (completedTasks === totalTasks && totalTasks > 0) {
+        return { date, status: 'completed' };
+      } else if (completedTasks > 0) {
+        return { date, status: 'partial' };
+      } else {
+        return { date, status: 'missed' };
+      }
+    });
   };
 
   const yearData = getYearData();
@@ -377,7 +356,7 @@ function YearlyOverview({ currentYear, changeYear, dailyTasks, onDateSelect }: {
               className={`w-full h-full aspect-square ${getStatusColor(status)} cursor-pointer`}
               style={{ gridRow: date.getDay() === 0 ? 7 : date.getDay() }}
               onClick={() => onDateSelect(date)}
-              title={`${date.toDateString()}: ${status}`}
+              title={`${format(date, 'MMM d, yyyy')}: ${status}`}
             />
           ))}
         </div>
@@ -386,7 +365,6 @@ function YearlyOverview({ currentYear, changeYear, dailyTasks, onDateSelect }: {
   );
 }
 
-// Main Task Tracking App Component
 export default function TaskTrackingApp() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -429,17 +407,15 @@ export default function TaskTrackingApp() {
   };
 
   const moveTaskToDate = (taskId: number, newDate: Date, currentDate: Date) => {
-    const newDateKey = newDate.toISOString().split('T')[0];
-    const currentDateKey = currentDate.toISOString().split('T')[0];
+    const newDateKey = format(newDate, 'yyyy-MM-dd');
+    const currentDateKey = format(currentDate, 'yyyy-MM-dd');
 
     setDailyTasks((prevDailyTasks) => {
-      // Remove task from current date
       const { [taskId]: _, ...remainingTasks } = prevDailyTasks[currentDateKey] || {};
 
-      // Add task to new date
       const updatedTasksForNewDate = {
         ...prevDailyTasks[newDateKey],
-        [taskId]: prevDailyTasks[currentDateKey][taskId] || false, // Keep task completion state
+        [taskId]: prevDailyTasks[currentDateKey][taskId] || false,
       };
 
       const newDailyTasks = {
@@ -463,7 +439,7 @@ export default function TaskTrackingApp() {
 
     setDailyTasks((prevDailyTasks) => {
       const newDailyTasks = { ...prevDailyTasks };
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = format(date, 'yyyy-MM-dd');
       newDailyTasks[dateKey] = {
         ...(newDailyTasks[dateKey] || {}),
         [newTask.id]: false,
@@ -482,7 +458,7 @@ export default function TaskTrackingApp() {
 
     setDailyTasks((prevDailyTasks) => {
       const newDailyTasks = { ...prevDailyTasks };
-      const dateKey = date.toISOString().split('T')[0];
+      const dateKey = format(date, 'yyyy-MM-dd');
       if (newDailyTasks[dateKey]) {
         const { [id]: _, ...rest } = newDailyTasks[dateKey];
         newDailyTasks[dateKey] = rest;
@@ -493,21 +469,15 @@ export default function TaskTrackingApp() {
   };
 
   const changeDate = (amount: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + amount);
-    setCurrentDate(newDate);
+    setCurrentDate((prevDate) => addDays(prevDate, amount));
   };
 
   const changeMonth = (amount: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + amount);
-    setCurrentDate(newDate);
+    setCurrentDate((prevDate) => addMonths(prevDate, amount));
   };
 
   const changeYear = (amount: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setFullYear(newDate.getFullYear() + amount);
-    setCurrentDate(newDate);
+    setCurrentDate((prevDate) => addYears(prevDate, amount));
   };
 
   const handleDateSelect = (date: Date) => {
